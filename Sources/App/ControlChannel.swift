@@ -30,13 +30,14 @@ final class ControlChannel: NSObject, ObservableObject, CommandChannelProtocol {
     /// 主 App 进程也需要 basePath，否则找不到扩展监听的 command.sock。
     static func setupKernel() throws {
         let container = try AppConfiguration.sharedContainerURL()
+        let socketBase = try AppConfiguration.commandSocketBaseURL()
         let working = container.appendingPathComponent("Working", isDirectory: true)
         let temp = container.appendingPathComponent("Temp", isDirectory: true)
         for url in [working, temp] {
             try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         }
         let options = LibboxSetupOptions()
-        options.basePath = container.path
+        options.basePath = socketBase.path
         options.workingPath = working.path
         options.tempPath = temp.path
         options.crashReportSource = "TrocketApp"

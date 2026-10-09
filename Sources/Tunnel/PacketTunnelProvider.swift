@@ -22,7 +22,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     override func startTunnel(options: [String: NSObject]?) async throws {
+        // container 供日志/工作目录使用（必须在 App Group）；socket 另用短路径，
+        // 因为 UDS 路径有 104 字节上限，仿真器下的 App Group 路径会超出。
         let container = try AppConfiguration.sharedContainerURL()
+        let socketBase = try AppConfiguration.commandSocketBaseURL()
         self.container = container
         // 每次连接覆盖重写日志：用户整份拷贝时给的就是最新这一次的完整现场
         TunnelLog.clear()
@@ -39,7 +42,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         let options = LibboxSetupOptions()
-        options.basePath = container.path
+        options.basePath = socketBase.path
         options.workingPath = working.path
         options.tempPath = temp.path
         options.crashReportSource = "NetworkExtension"

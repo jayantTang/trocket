@@ -24,6 +24,19 @@ public enum AppConfiguration {
     }
 
     /// 两个进程共享的容器目录。
+    /// 命令通道（Unix socket）用的 basePath。
+    /// macOS/iOS 的 UDS 路径上限约 104 字节：真机 App Group 路径够短，但仿真器路径约 139 字节，
+    /// 会直接 `bind: invalid argument`（表现为"未连接时无法测速"）。过长时退回到短目录。
+    public static func commandSocketBaseURL() throws -> URL {
+        let limit = 100
+        let reserved = "/command.sock".utf8.count
+        let container = try sharedContainerURL()
+        if container.path.utf8.count + reserved <= limit { return container }
+        let tmp = FileManager.default.temporaryDirectory
+        if tmp.path.utf8.count + reserved <= limit { return tmp }
+        return URL(fileURLWithPath: "/tmp")
+    }
+
     public static func sharedContainerURL() throws -> URL {
         guard let appGroupID else {
             throw TrocketError.appGroupMissing
