@@ -8,10 +8,10 @@ final class ConfigShapingTests: XCTestCase {
 
         // 入站只剩我们自己的 tun，且不带 1.13 起被移除的旧字段
         let inbounds = try XCTUnwrap(root["inbounds"] as? [[String: Any]])
-        XCTAssertEqual(inbounds.count, 1, "桌面端的 socks/mixed 入站必须被替换掉")
-        let tun = try XCTUnwrap(inbounds.first)
-        XCTAssertEqual(tun["type"] as? String, "tun")
-        XCTAssertEqual(tun["stack"] as? String, "gvisor")
+        XCTAssertEqual(inbounds.count, 2, "桌面端的 socks/mixed 入站被替换为 tun + 自检口")
+        let tun = try XCTUnwrap(inbounds.first { $0["type"] as? String == "tun" })
+        XCTAssertEqual(tun["stack"] as? String, "system", "Apple 平台用 system 栈（真机验证）")
+        XCTAssertNotNil(inbounds.first { $0["tag"] as? String == "self-test-in" }, "自检口必须存在，否则连不上时无法定位")
         XCTAssertEqual(tun["mtu"] as? Int, ConfigShaping.tunMTU)
         XCTAssertEqual(tun["auto_route"] as? Bool, true)
         XCTAssertEqual(tun["strict_route"] as? Bool, false)

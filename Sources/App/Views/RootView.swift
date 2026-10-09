@@ -55,6 +55,12 @@ struct RootView: View {
     private var emptyState: some View {
         if model.nodes.isEmpty {
             VStack(spacing: 12) {
+                Image("KittyIcon")
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: .pink.opacity(0.25), radius: 10, y: 4)
                 Text(model.hasProfile ? "尚未解析出线路" : "还没有订阅")
                     .font(.headline)
                 Text("粘贴订阅链接后即可选择线路并连接")
@@ -108,6 +114,11 @@ struct StatusHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
+                Image("KittyIcon")
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 30, height: 30)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 Circle()
                     .fill(tunnel.state.isConnected ? Color.green : Color.secondary.opacity(0.4))
                     .frame(width: 8, height: 8)
@@ -146,8 +157,14 @@ struct StatusHeader: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.top, 8)
     }
 
     /// 已连接时显示内核上报的累计流量（关闭时显示系统状态里的数据）。
@@ -183,6 +200,11 @@ struct ConnectBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(.secondarySystemBackground))
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
     }
 }
