@@ -50,8 +50,8 @@ targets:
       path: Support/Trocket-Info.plist
       properties:
         CFBundleDisplayName: Trocket
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         TrocketAppGroup: group.@BUNDLE_PREFIX@.trocket
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
@@ -92,8 +92,8 @@ targets:
       path: Support/TrocketTunnel-Info.plist
       properties:
         CFBundleDisplayName: Trocket Tunnel
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         TrocketAppGroup: group.@BUNDLE_PREFIX@.trocket
         NSExtension:
           NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
