@@ -70,7 +70,7 @@ APP_PATH="${DEVICE_DERIVED}/Build/Products/Release-iphoneos/Trocket.app"
 
 echo "==> 检查描述文件包含哪些设备"
 if security cms -D -i "${APP_PATH}/embedded.mobileprovision" -o "${BUILD_DIR}/embedded.plist" 2>/dev/null; then
-  python3 "${ROOT}/scripts/print-profile-devices.py" "${BUILD_DIR}/embedded.plist" "<设备UDID>"
+  python3 "${ROOT}/scripts/print-profile-devices.py" "${BUILD_DIR}/embedded.plist" "${OTA_TEST_UDID:-}"
 else
   echo "    WARNING: 读不出 embedded.mobileprovision，跳过检查"
 fi
@@ -153,7 +153,7 @@ cat > "${BUILD_DIR}/index.html" <<HTML
  <a class="btn" href="itms-services://?action=download-manifest&amp;url=${PUBLIC_URL}/manifest.plist">安装 Trocket</a>
  <ol>
   <li>点上面的按钮，系统提示"要安装此 App 吗"时选 <b>安装</b>。</li>
-  <li>装完到 <b>设置 → 通用 → VPN与设备管理</b> 信任 "<开发者名称>"。</li>
+  <li>装完到 <b>设置 → 通用 → VPN与设备管理</b> 信任对应的开发者证书。</li>
   <li>若提示需要开发者模式：<b>设置 → 隐私与安全性 → 开发者模式</b> 打开并重启一次。</li>
   <li>打开 Trocket：粘贴订阅链接 → 导入 → 测速 → 选线路 → 打开开关。</li>
  </ol>

@@ -26,3 +26,7 @@ cache.db
 .dsh/
 __pycache__/
 *.pyc
+promo/out/*.png
+promo/out/*.gif
+promo/out/*.mp4
+promo/source/*.png

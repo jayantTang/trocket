@@ -17,8 +17,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT}"
 
-TEAM_ID="${TEAM_ID:-<TEAM_ID>}"
-BUNDLE_PREFIX="${BUNDLE_PREFIX:-com.jayanttang}"
+TEAM_ID="${TEAM_ID:?请设置 TEAM_ID（Apple 开发者团队 ID）}"
+BUNDLE_PREFIX="${BUNDLE_PREFIX:?请设置 BUNDLE_PREFIX（包名前缀）}"
 KEY_ID="${APPSTORE_API_KEY_ID:?请设置 APPSTORE_API_KEY_ID}"
 KEY_PATH="${APPSTORE_API_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8}"
 ISSUER="${APPSTORE_API_ISSUER_ID:-${1:-}}"

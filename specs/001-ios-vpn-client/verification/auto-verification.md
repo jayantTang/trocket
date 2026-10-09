@@ -61,7 +61,7 @@ xcodebuild test -scheme Trocket -destination 'platform=iOS Simulator,name=iPhone
 
 - 签名团队：`<TEAM_ID>`（登录 Xcode 的账号）；Bundle：`com.jayanttang.trocket` / `.tunnel`；
   App Group：`group.com.jayanttang.trocket`；开发描述文件到期 2027-10-08。
-- 描述文件内含 2 台设备：`<设备UDID>`（iPhone 15，本机配对）、`<设备UDID>`（iPad）。
+- 描述文件内含 2 台设备：`<iPhone UDID>`（iPhone 15，本机配对）、`<iPad UDID>`（iPad）。
 - 产物：`build/ota/Trocket.ipa`（42MB，Release，含内嵌网络扩展）。
 - 托管：本机 `python3 -m http.server 8899` + `cloudflared tunnel`（临时公网 https，链接随隧道关闭失效）。
 - 复现：`TEAM_ID=<TEAM_ID> BUNDLE_PREFIX=com.jayanttang ./scripts/make-ota.sh`。
