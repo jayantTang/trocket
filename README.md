@@ -1,5 +1,13 @@
 # Trocket
 
+![Platform](https://img.shields.io/badge/iOS-15%2B-000000?logo=apple&logoColor=white)
+![Swift](https://img.shields.io/badge/Swift-5-F05138?logo=swift&logoColor=white)
+![Kernel](https://img.shields.io/badge/sing--box-1.14.2-E85D8A)
+![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue)
+![Distribution](https://img.shields.io/badge/TestFlight-公测中-0D96F6?logo=apple&logoColor=white)
+
+![Trocket](docs/assets/readme-banner.png)
+
 面向 iOS 的极简代理客户端：导入订阅、测量线路延迟、选择线路并建立系统级 VPN 连接。
 网络核心使用 [sing-box](https://github.com/SagerNet/sing-box) 的 `libbox`（v1.14.2），
 不自行实现任何代理协议；界面为单屏结构。
@@ -17,6 +25,12 @@
 
 有意不实现的能力（见 `.specify/memory/constitution.md` 第 II 条）：
 规则编辑器、多订阅管理、自定义分流、macOS / tvOS / Android 版本。
+
+## 演示
+
+![演示](docs/assets/readme-hero.gif)
+
+演示视频：[readme-hero.mp4](docs/assets/readme-hero.mp4)
 
 ## 系统要求
 
