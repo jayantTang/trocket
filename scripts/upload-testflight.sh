@@ -8,7 +8,7 @@
 #
 # 凭据：
 #   - API Key 文件默认取 ~/.appstoreconnect/private_keys/AuthKey_${APPSTORE_API_KEY_ID}.p8
-#   - KEY ID 默认 <ASC_KEY_ID>（可用 APPSTORE_API_KEY_ID 覆盖）
+#   - KEY ID 必须由 APPSTORE_API_KEY_ID 提供（不写入仓库）
 #   - Issuer ID 必须提供（App Store Connect → 用户和访问 → 集成 → App Store Connect API）
 #
 # 前置：App Store Connect 里必须已存在 Bundle ID 对应的 App 记录，否则上传无处可去。
@@ -19,7 +19,7 @@ cd "${ROOT}"
 
 TEAM_ID="${TEAM_ID:-<TEAM_ID>}"
 BUNDLE_PREFIX="${BUNDLE_PREFIX:-com.jayanttang}"
-KEY_ID="${APPSTORE_API_KEY_ID:-<ASC_KEY_ID>}"
+KEY_ID="${APPSTORE_API_KEY_ID:?请设置 APPSTORE_API_KEY_ID}"
 KEY_PATH="${APPSTORE_API_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8}"
 ISSUER="${APPSTORE_API_ISSUER_ID:-${1:-}}"
 ARCHIVE="/tmp/Trocket.xcarchive"

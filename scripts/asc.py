@@ -7,8 +7,8 @@
   python3 scripts/asc.py screenshots <目录>  # 上传 6.7 英寸截图（目录内按文件名排序）
   python3 scripts/asc.py status             # 打印当前元数据填充状态
 
-凭据：~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8（默认 <ASC_KEY_ID>）
-Issuer：环境变量 ASC_ISSUER，默认 <ASC_ISSUER_ID>
+凭据：环境变量 ASC_KEY_ID（Key ID）与 ASC_ISSUER（Issuer ID），
+      私钥文件放在 ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
 """
 import base64
 import json
@@ -23,10 +23,12 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
-KEY_ID = os.environ.get("ASC_KEY_ID", "<ASC_KEY_ID>")
-ISSUER = os.environ.get("ASC_ISSUER", "<ASC_ISSUER_ID>")
+KEY_ID = os.environ.get("ASC_KEY_ID", "")
+ISSUER = os.environ.get("ASC_ISSUER", "")
 APP_ID = "6820968247"
 INFO_ID = "1cf4ae91-e18d-499f-8881-ca9446d48ecc"
+if not KEY_ID or not ISSUER:
+    raise SystemExit("请先设置环境变量：ASC_KEY_ID=<Key ID> ASC_ISSUER=<Issuer ID>")
 KEY_PATH = os.path.expanduser(f"~/.appstoreconnect/private_keys/AuthKey_{KEY_ID}.p8")
 API = "https://api.appstoreconnect.apple.com"
 

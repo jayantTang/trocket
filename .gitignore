@@ -24,3 +24,5 @@ go.work.sum
 project.generated.yml
 cache.db
 .dsh/
+__pycache__/
+*.pyc
