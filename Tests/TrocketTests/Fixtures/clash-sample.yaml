@@ -1,0 +1,23 @@
+# Clash 系订阅样例（脱敏）：仅用于单元测试。
+# 覆盖：行内流式映射（anytls/ss/vmess/vless/trojan）、块式映射、不支持的类型、缺字段的坏条目。
+mixed-port: 7890
+allow-lan: true
+mode: rule
+log-level: info
+proxies:
+    - { name: 'HK-01 [Normal x0.5]', type: anytls, server: hk1.example.com, port: 1443, password: REDACTED, udp: true, sni: sni.example.com }
+    - { name: 'JP-01', type: ss, server: jp1.example.com, port: 8388, cipher: aes-256-gcm, password: REDACTED }
+    - { name: 'US-01', type: vmess, server: us1.example.com, port: 443, uuid: REDACTED, alterId: 0, cipher: auto, tls: true, sni: sni.example.com }
+    - { name: 'SG-01', type: vless, server: sg1.example.com, port: 443, uuid: REDACTED, tls: true, flow: xtls-rprx-vision }
+    - { name: 'TW-01', type: trojan, server: tw1.example.com, port: 443, password: REDACTED, sni: sni.example.com, skip-cert-verify: true }
+    - name: Block-01
+      type: anytls
+      server: block.example.com
+      port: 1443
+      password: REDACTED
+    - { name: 'WG-01', type: wireguard, server: wg.example.com, port: 51820, password: REDACTED }
+    - { name: 'BROKEN-01', type: anytls, udp: true }
+proxy-groups:
+    - { name: '🚀 节点选择', type: select, proxies: ['HK-01 [Normal x0.5]', 'JP-01'] }
+rules:
+    - MATCH,🚀 节点选择
