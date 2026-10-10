@@ -275,3 +275,26 @@ swiftc -O -o /tmp/shapedgen Sources/Shared/*.swift /tmp/main.swift   # main.swif
 **验证**：真实订阅上 32 → 44 条，12 条新节点都在主分组里，合并后的配置通过 `sing-box check`（1.14.2）；
 单测 `NodeSupplementTests`（4 项）覆盖合并、去重、无新增、以及"只动 outbounds 不动服务商规则"。
 `scripts/diagnose-subscription.py` 可随时复现这个对比。
+
+### R12 补充：这批新节点的证书策略（2026-10-10 晚）
+
+补进来的美国/德国节点在真机上「看得见但连不上」，本地用 sing-box 复现出确切原因：
+
+```
+failed to create session: tls: failed to verify certificate: x509: certificate signed by unknown authority
+```
+
+服务商对这些节点用的是**非公共 CA 的证书 + 证书指纹固定**（Clash 的 `fingerprint` + `sni: snssdk.com`）。
+sing-box 只有 `certificate_public_key_sha256`（**公钥**散列固定），而实测服务商给的指纹
+（`2bfc52c4…653`）与服务器实际公钥散列（`o5VEa8…/pg=`）**不一致**——照搬只会全部校验失败。
+因此 `ClashYAML.makeOutbound` 对带 `fingerprint` 的节点按 `insecure: true` 处理（等价于服务商自己
+"固定指纹、不走公共 CA"的意图）。**取舍**：这些节点不做 TLS 身份认证，中间人理论上可冒充；
+不带指纹的节点（如香港，服务器有公共可信证书）仍保持正常校验。
+
+**验证**：改后本地实业拨号 —— 美国节点 HTTP 204 / 0.84s，德国节点 HTTP 204 / 1.56s（出口 IP 87.84.189.149）。
+
+**同期发现（与本次改动无关，供排查参考）**：本机用同一份订阅逐节点拨号，
+**新加坡、美国、德国可达，香港/日本节点 TCP 直连超时**（`dial tcp 15.165.45.156:1443: i/o timeout`）——
+说明那批节点当时在节点侧或本地链路上不可达。真机上若「所有节点都连不上」，
+先分开看：新补的美/德是上面这个证书问题（本次已修），港/日则要按节点侧问题排查
+（同一网络下用 Shadowrocket 连同样的节点对照即可区分）。

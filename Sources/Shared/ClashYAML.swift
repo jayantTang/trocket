@@ -247,7 +247,14 @@ public enum ClashYAML {
         ]
 
         let sni = entry["sni"] ?? entry["servername"]
-        let insecure = (entry["skip-cert-verify"] ?? "false") == "true"
+        let skipVerify = (entry["skip-cert-verify"] ?? "false") == "true"
+        // 服务商对部分节点用「证书指纹固定」代替公共 CA 校验（实测：美国/德国节点带
+        // fingerprint + sni=snssdk.com，服务器证书 `signed by unknown authority`）。
+        // sing-box 只能固定**公钥**散列（certificate_public_key_sha256），而服务商给的指纹
+        // 实测与服务器公钥散列不一致（是证书自身的散列），照搬只会全部校验失败；
+        // 因此这类节点退回「跳过证书校验」，否则它们在界面上可见却完全拨不通。
+        let fingerprint = (entry["fingerprint"] ?? "").trimmingCharacters(in: .whitespaces)
+        let insecure = skipVerify || !fingerprint.isEmpty
         let tlsEnabled = (entry["tls"] ?? "false") == "true"
 
         func tlsObject(enabled: Bool) -> [String: Any] {

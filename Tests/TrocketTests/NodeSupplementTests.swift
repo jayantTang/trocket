@@ -82,3 +82,32 @@ final class NodeSupplementTests: XCTestCase {
         XCTAssertNotNil((root["route"] as? [String: Any])?["rule_set"])
     }
 }
+
+/// 服务商对部分节点（实测：美国/德国）用 Clash 的 `fingerprint` 固定证书，而 sing-box 只能固定
+/// 公钥散列、且服务商给的指纹与之不符 —— 这类节点必须按"跳过证书校验"处理，否则全部拨不通。
+final class ClashCertificatePolicyTests: XCTestCase {
+
+    private func outbound(_ entry: String) throws -> [String: Any] {
+        let text = "proxies:\n    - { \(entry) }\n"
+        return try XCTUnwrap(ClashYAML.nodeOutbounds(from: text).outbounds.first)
+    }
+
+    func testFingerprintNodeSkipsVerification() throws {
+        let node = try outbound("name: '美国 01', type: anytls, server: us1.example.com, port: 777, password: p, sni: snssdk.com, fingerprint: 2bfc52c428bf27a240795fb15736580e5ed96dfedc83b61ead442aca93e4e653")
+        let tls = try XCTUnwrap(node["tls"] as? [String: Any])
+        XCTAssertEqual(tls["insecure"] as? Bool, true, "带证书指纹的节点必须跳过校验，否则 x509 校验失败")
+        XCTAssertEqual(tls["server_name"] as? String, "snssdk.com")
+    }
+
+    func testNormalNodeStillVerifies() throws {
+        let node = try outbound("name: '香港 01', type: anytls, server: hk1.example.com, port: 1443, password: p, sni: hk.example.icu")
+        let tls = try XCTUnwrap(node["tls"] as? [String: Any])
+        XCTAssertEqual(tls["insecure"] as? Bool, false, "没有指纹的节点要保持正常校验")
+    }
+
+    func testExplicitSkipCertVerifyHonoured() throws {
+        let node = try outbound("name: 'X', type: trojan, server: x.example.com, port: 443, password: p, skip-cert-verify: true")
+        let tls = try XCTUnwrap(node["tls"] as? [String: Any])
+        XCTAssertEqual(tls["insecure"] as? Bool, true)
+    }
+}
