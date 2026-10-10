@@ -130,6 +130,7 @@ xcodebuild test -scheme Trocket -destination 'platform=iOS Simulator,name=iPhone
 | Clash 兜底转换路径 | 同上 | **CHECK OK**；生成的配置首次带有国内直连与 `clash_mode` 规则 |
 | 最坏情况（订阅无任何规则） | 同上 | **CHECK OK**；自动补出「CN → direct」与 `clash_mode` 规则 |
 | 规则集确实被内核读取（反证） | 把 `geosite-cn.srs` 移走后重跑 `check` | **FATAL: open …/rule-set/geosite-cn.srs: no such file or directory**；还原后 OK |
+| 规则集判定是否正确（国内命中 / 境外不命中） | `SING_BOX=… ./scripts/check-rule-sets.sh`（用内核的 `sing-box rule-set match`，与隧道内同一套匹配实现） | **16/16 PASS**：taobao/baidu/qq/weibo/jd/bilibili/12306 与 223.5.5.5 等国内 IP 命中；google/youtube/github 与 8.8.8.8/1.1.1.1 不命中 |
 | 仿真器界面：模式菜单 | `./scripts/verify-ui.sh`（新增 `TrocketUITests` 目标 + `Tests/TrocketUITests/RoutingModeMenuUITests.swift`） | **PASS**：菜单两项都在、切换后对勾正确、杀进程重开后保留；截图见第 3 节 `simulator-routing-*.png` |
 
 **仍未验证（需要真机）**：国内站点是否真的直连、切「全局」后出口 IP 是否变化、

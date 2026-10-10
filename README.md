@@ -107,8 +107,9 @@ open Trocket.xcodeproj
 ## 测试与验证
 
 ```bash
-./scripts/verify.sh      # 设备 SDK 编译 + 模拟器单元测试
-./scripts/verify-ui.sh   # 仿真器界面用例（XCUITest），截图导出到 build/ui-shots/
+./scripts/verify.sh        # 设备 SDK 编译 + 模拟器单元测试
+./scripts/verify-ui.sh     # 仿真器界面用例（XCUITest），截图导出到 build/ui-shots/
+./scripts/check-rule-sets.sh   # 内置规则集判定（国内命中 / 境外不命中），需 sing-box 可执行文件
 ```
 
 真机连接、测速与切换需按 `specs/001-ios-vpn-client/quickstart.md` 第 3 节人工复验；
