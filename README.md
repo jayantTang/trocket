@@ -122,6 +122,7 @@ open Trocket.xcodeproj
 |---|---|
 | 内部分发（OTA，设备需登记 UDID） | `TEAM_ID=... BUNDLE_PREFIX=... ./scripts/make-ota.sh` |
 | App Store / TestFlight | `APPSTORE_API_ISSUER_ID=... ./scripts/upload-testflight.sh` |
+| 换构建 / 从审核中移除 / 重新送审 | `python3 scripts/asc-submit.py status \| attach-build <N> \| remove-from-review \| resubmit` |
 | 商店元数据与截图 | `ASC_KEY_ID=... ASC_ISSUER=... python3 scripts/asc.py status \| screenshots <目录>` |
 | 宣传素材（1290×2796 截图、动图、视频） | `python3 promo/make_promo.py` |
 
