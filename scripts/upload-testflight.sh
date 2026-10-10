@@ -111,15 +111,28 @@ if [ "${NO_UPLOAD:-0}" = "1" ]; then
 fi
 
 echo "==> 上传 App Store Connect（TestFlight）"
-xcrun altool --upload-app -f "$IPA" -t ios \
-  --apiKey "$KEY_ID" --apiIssuer "$ISSUER" --apiKeyFile "$KEY_PATH" \
-  > "$LOG_DIR/upload.log" 2>&1 || {
-    tail -25 "$LOG_DIR/upload.log" >&2
-    echo >&2
-    echo "常见原因：App Store Connect 里还没有对应的 App 记录，或账号协议/权限未就绪；" >&2
-    echo "或账号地区/协议（Program License Agreement）未就绪。" >&2
-    die "上传失败，日志：$LOG_DIR/upload.log"
-  }
+# altool 偶尔会抽风报权限错（实测："The file “Defaults.properties” couldn't be opened because
+# you don't have permission to view it."），紧接着重试同样的包就能成功 —— 所以这里重试一次。
+upload_ok=0
+for attempt in 1 2; do
+  if xcrun altool --upload-app -f "$IPA" -t ios \
+      --apiKey "$KEY_ID" --apiIssuer "$ISSUER" --apiKeyFile "$KEY_PATH" \
+      > "$LOG_DIR/upload.log" 2>&1; then
+    upload_ok=1
+    break
+  fi
+  echo "    第 ${attempt} 次上传失败，$( [ "$attempt" = 1 ] && echo '重试一次…' || echo '放弃' )" >&2
+  tail -3 "$LOG_DIR/upload.log" >&2
+  [ "$attempt" = 1 ] && sleep 5
+done
+
+if [ "$upload_ok" != "1" ]; then
+  tail -25 "$LOG_DIR/upload.log" >&2
+  echo >&2
+  echo "常见原因：App Store Connect 里还没有对应的 App 记录，或账号协议/权限未就绪；" >&2
+  echo "或账号地区/协议（Program License Agreement）未就绪。" >&2
+  die "上传失败，日志：$LOG_DIR/upload.log"
+fi
 
 tail -8 "$LOG_DIR/upload.log"
 echo
