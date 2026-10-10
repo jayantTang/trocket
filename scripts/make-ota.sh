@@ -83,8 +83,19 @@ cp -R "${APP_PATH}" "${BUILD_DIR}/Payload/"
 echo "    ${BUILD_DIR}/Trocket.ipa ($(du -h "${BUILD_DIR}/Trocket.ipa" | cut -f1))"
 
 echo "==> 起本地静态服务 :${PORT}"
-( cd "${BUILD_DIR}" && nohup python3 -m http.server "${PORT}" --bind 127.0.0.1 > "${SERVER_LOG}" 2>&1 & echo $! > "${BUILD_DIR}/server.pid" )
+# 端口被占时 python 会直接退出，而 cloudflared 仍然会给出公网地址 ——
+# 结果是手机装到上一次遗留目录里的旧包（踩过）。这里先拦住，并核对服务确实起来了。
+if lsof -ti ":${PORT}" >/dev/null 2>&1; then
+  die "端口 ${PORT} 已被占用（可能是上一次 OTA 或其它本地服务）；换一个：PORT=8901 $0"
+fi
+# 注意 `exec`：后台子 shell 直接变成 python，否则 $! 记的是子 shell 的 pid，
+# 停止服务时会 kill 错进程（踩过：pid 文件里记的是本脚本自己）。
+( cd "${BUILD_DIR}" && exec nohup python3 -m http.server "${PORT}" --bind 127.0.0.1 > "${SERVER_LOG}" 2>&1 ) &
+echo $! > "${BUILD_DIR}/server.pid"
 sleep 2
+if ! curl -s -o /dev/null --max-time 5 -I "http://127.0.0.1:${PORT}/Trocket.ipa"; then
+  die "本地静态服务没起来（端口 ${PORT}），看 ${SERVER_LOG}"
+fi
 
 echo "==> 开 cloudflared 隧道（等待分配 https 地址，最多 60 秒）"
 : > "${TUNNEL_LOG}"
