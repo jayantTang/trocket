@@ -240,7 +240,11 @@ swiftc -O -o /tmp/shapedgen Sources/Shared/*.swift /tmp/main.swift   # main.swif
 **路由开关**：菜单提供「规则 / 全局」，走内核 Clash 模式（`LibboxCommandClient.setClashMode`），
 不断线生效。订阅一般自带 `clash_mode` 规则，没有的由 `ConfigShaping.ensureClashModeRules` 补
 （含 DNS 侧的 `clash_mode: global → remote`）。扩展侧**没有** `setClashMode` 绑定，
-所以隧道重启后由主 App 在命令通道连上时把模式补推一次（`AppModel.pushRoutingModeToKernel`）。
+所以隧道重启后由两处兜底：主 App 在命令通道连上时补推一次
+（`AppModel.pushRoutingModeToKernel`），以及扩展自己在启动服务后自连命令通道下发一次
+（`Sources/Tunnel/RoutingModeRestorer.swift`）——后者覆盖"扩展被系统回收后重启、App 不在前台"
+这一情形（此时内核会回到默认 `rule`，「全局」会悄悄失效）。启动日志里会留一行
+`clash mode restored: rule|global`，真机排查看它即可。
 
 **判定边界（已知限制）**：域名库按域名匹配、IP 库按解析后的地址匹配，国内域名解析到境外 CDN
 时会判成"境外"而走代理，反之亦然；DNS 侧同步分流（国内域名用 `223.5.5.5` 直连解析）以降低误判。

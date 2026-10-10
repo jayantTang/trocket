@@ -12,6 +12,8 @@ import os.log
 final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private var commandServer: LibboxCommandServer?
+    /// 启动时把「规则 / 全局」写回内核（见 RoutingModeRestorer）
+    private let routingModeRestorer = RoutingModeRestorer()
     private lazy var platformInterface = TunnelPlatformInterface(provider: self)
     private let logger = Logger(subsystem: "com.trocket.tunnel", category: "provider")
     private var container: URL?
@@ -85,8 +87,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             throw failure("配置加载失败：\((error as NSError).localizedDescription)", to: container)
         }
 
-        // 路由模式（规则 / 全局）由内核 Clash 模式承载，扩展侧没有可用的绑定，
-        // 由主 App 在命令通道连上后下发（见 AppModel.pushRoutingModeToKernel）。
+        // 恢复用户选择的「规则 / 全局」：内核的 Clash 模式不落配置，
+        // 扩展被系统回收后自动重启时会回到默认 rule，所以这里自己下发一次
+        // （扩展侧没有 setClashMode 的 Swift 绑定，走命令通道自连）。
+        routingModeRestorer.restore(RoutingMode.load(), container: container)
 
         logger.info("tunnel started")
         TunnelLog.write("startTunnel done", to: container)
