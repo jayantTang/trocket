@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  App Store 导出（手工签名）。
+
+  为什么不用 Support/ExportOptions-appstore.plist（automatic）：
+  自动导出会走「云签名」，而本机既没登录 Xcode 账号（No Accounts），
+  团队 API Key 也没有云签名权限，实测报：
+      error: exportArchive Cloud signing permission error
+      error: exportArchive No signing certificate "iOS Distribution" found
+  改成手工签名后，用分发证书（私钥在 ~/Library/Keychains/dshbuild.keychain-db）
+  与 App Store 描述文件导出即可，见 README「分发」一节。
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>teamID</key>
+	<string>J45TT5R9C6</string>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.jayanttang.trocket</key>
+		<string>Trocket App Store</string>
+		<key>com.jayanttang.trocket.tunnel</key>
+		<string>Trocket Tunnel App Store</string>
+	</dict>
+	<key>stripSwiftSymbols</key>
+	<true/>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+	<key>destination</key>
+	<string>export</string>
+</dict>
+</plist>

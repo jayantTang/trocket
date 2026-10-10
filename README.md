@@ -121,13 +121,26 @@ open Trocket.xcodeproj
 | 场景 | 命令 |
 |---|---|
 | 内部分发（OTA，设备需登记 UDID） | `TEAM_ID=... BUNDLE_PREFIX=... ./scripts/make-ota.sh` |
-| App Store / TestFlight | `APPSTORE_API_ISSUER_ID=... ./scripts/upload-testflight.sh` |
+| App Store 归档+导出（不上传，先验一遍） | `NO_UPLOAD=1 APPSTORE_API_ISSUER_ID=... ./scripts/upload-testflight.sh` |
+| 上传 TestFlight | `APPSTORE_API_ISSUER_ID=... ./scripts/upload-testflight.sh` |
+| 补齐 App Store 描述文件 | `ASC_KEY_ID=... ASC_ISSUER=... python3 scripts/asc-profiles.py ensure` |
 | 换构建 / 从审核中移除 / 重新送审 | `python3 scripts/asc-submit.py status \| attach-build <N> \| remove-from-review \| resubmit` |
 | 商店元数据与截图 | `ASC_KEY_ID=... ASC_ISSUER=... python3 scripts/asc.py status \| screenshots <目录>` |
 | 宣传素材（1290×2796 截图、动图、视频） | `python3 promo/make_promo.py` |
 
 App Store Connect 的 Key ID、Issuer ID 与私钥 `.p8` 一律通过环境变量或本机
 `~/.appstoreconnect/private_keys/` 提供，不写入仓库。
+
+**分发签名（本机现状，别再踩）**：这台机器**没有登录 Xcode 账号**（导出报 `No Accounts`），
+团队 API Key 也没有云签名权限（报 `Cloud signing permission error`），所以自动导出必然失败。
+现在走**手工签名**：
+
+- 分发证书 `Apple Distribution: jingyang Tang (J45TT5R9C6)`，私钥在独立钥匙串
+  `~/Library/Keychains/dshbuild.keychain-db`（密码 `dsh`）。**不要**把私钥导进 login 钥匙串。
+- App Store 描述文件（`Trocket App Store` / `Trocket Tunnel App Store`）由
+  `scripts/asc-profiles.py ensure` 通过 API 创建并安装；`upload-testflight.sh` 会自动调它。
+- `upload-testflight.sh` 默认手工签名（自动解锁并临时挂上 dshbuild 钥匙串，结束后还原）；
+  想回到云签名用 `USE_SESSION_SIGNING=1`。
 
 ## 安全与隐私
 

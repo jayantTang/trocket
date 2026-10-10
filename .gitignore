@@ -11,6 +11,8 @@ Vendor/
 Sources/Shared/Generated/
 Support/*.entitlements
 Support/*.plist
+# 导出配置是手写的（不是 XcodeGen 产物），要入库
+!Support/ExportOptions-*.plist
 
 # Xcode / macOS
 .DS_Store
