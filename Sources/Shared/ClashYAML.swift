@@ -79,7 +79,9 @@ public enum ClashYAML {
             ],
             "strategy": "prefer_ipv4",
         ]
-        if !chinaTags.isEmpty {
+        // 国内域名用本地 DNS 解析（否则解析出的境外 IP 会让直连判定偏向走代理）。
+        // 只在国内域名规则集**确实挂上**时才引用它：引用未声明的 tag 会让内核启动即失败。
+        if chinaTags.contains("geosite-cn") {
             dns["rules"] = [["clash_mode": "global", "server": "remote"],
                             ["rule_set": ["geosite-cn"], "server": "local"]]
         }

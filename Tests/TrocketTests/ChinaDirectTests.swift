@@ -191,6 +191,25 @@ final class ChinaDirectTests: XCTestCase {
         XCTAssertEqual(route["final"] as? String, "节点选择", "未命中规则的流量仍然走所选线路")
     }
 
+    /// 只有 geoip-cn 可用时，绝不能引用未声明的 geosite-cn：
+    /// 内核遇到引用不存在的 rule_set 会直接启动失败（dns rule: rule-set not found）。
+    func testClashConversionDoesNotReferenceMissingRuleSet() throws {
+        let base = try makeRuleSetDirectory()
+        try writeRuleSet(named: "geoip-cn.srs", in: base)   // 故意缺 geosite-cn
+
+        let result = try ClashYAML.convert(try Fixtures.text(Fixtures.clashSample), base: base)
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: result.config) as? [String: Any])
+        let route = try XCTUnwrap(root["route"] as? [String: Any])
+        let ruleSets = try XCTUnwrap(route["rule_set"] as? [[String: Any]])
+        XCTAssertEqual(ruleSets.compactMap { $0["tag"] as? String }, ["geoip-cn"])
+
+        let rules = try XCTUnwrap(route["rules"] as? [[String: Any]])
+        XCTAssertTrue(rules.contains { ($0["rule_set"] as? [String])?.contains("geoip-cn") == true })
+        let dnsRules = try XCTUnwrap((root["dns"] as? [String: Any])?["rules"] as? [[String: Any]])
+        XCTAssertFalse(dnsRules.contains { ($0["rule_set"] as? [String])?.contains("geosite-cn") == true },
+                       "DNS 规则不能引用未声明的规则集")
+    }
+
     /// 没有内置规则集时（异常打包）不能崩，也不能生成引用不存在文件的规则。
     func testClashConversionWithoutRuleSetsStillWorks() throws {
         let empty = try makeRuleSetDirectory()
