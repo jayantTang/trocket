@@ -238,8 +238,11 @@ final class AppModel: ObservableObject {
     }
 
     /// 命令通道连上后把当前模式推给内核（隧道重启会回到内核默认的 rule 模式）。
+    ///
+    /// 注意不要用 `tunnel.state.isConnected` 当门槛：命令通道连上时系统状态常常还是
+    /// "连接中"，那样这次推送会被跳过，用户选的「全局」要等到下一次手动切换才生效。
     private func pushRoutingModeToKernel() {
-        guard tunnel.state.isConnected else { return }
+        guard channel.attached else { return }
         do {
             try channel.setRoutingMode(routingMode)
             TunnelLog.write("routing mode pushed: \(routingMode.clashMode)")

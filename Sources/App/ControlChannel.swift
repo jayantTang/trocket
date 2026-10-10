@@ -29,6 +29,8 @@ final class ControlChannel: NSObject, ObservableObject, CommandChannelProtocol {
 
     private var client: LibboxCommandClient?
     private var serviceReady = false
+    /// 命令通道连接失败后的重试计数（见 `scheduleAttachRetry`）。
+    private var attachRetries = 0
     private let queue = DispatchQueue(label: "trocket.control-channel")
 
     /// 主 App 进程也需要 basePath，否则找不到扩展监听的 command.sock。
@@ -57,6 +59,9 @@ final class ControlChannel: NSObject, ObservableObject, CommandChannelProtocol {
     }
 
     /// 隧道连上后调用：连接命令通道并订阅状态与线路组。
+    ///
+    /// 连不上会有限次重试：刚开隧道时扩展的命令服务往往还没开始监听，
+    /// 若就此放弃，用户选的「全局」模式和测速都要等到下一次交互才生效。
     func attach() {
         guard client == nil else { return }
         let options = LibboxCommandClientOptions()
@@ -68,12 +73,31 @@ final class ControlChannel: NSObject, ObservableObject, CommandChannelProtocol {
         queue.async { [weak self] in
             do {
                 try client.connect()
-                DispatchQueue.main.async { self?.attached = true }
+                DispatchQueue.main.async {
+                    self?.attached = true
+                    self?.attachRetries = 0
+                }
             } catch {
                 // 未连接时命令通道不可用属正常情况，不打扰用户。
-                DispatchQueue.main.async { self?.attached = false }
-                self?.detach()
+                DispatchQueue.main.async {
+                    self?.attached = false
+                    self?.detach()
+                    self?.scheduleAttachRetry()
+                }
             }
+        }
+    }
+
+    /// 最多再试 3 次（1.5s 一次）；成功或放弃后计数归零。
+    private func scheduleAttachRetry() {
+        guard attachRetries < 3 else {
+            attachRetries = 0
+            return
+        }
+        attachRetries += 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self = self, self.client == nil else { return }
+            self.attach()
         }
     }
 
