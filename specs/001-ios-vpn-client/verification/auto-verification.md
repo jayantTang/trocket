@@ -97,3 +97,28 @@ xcodebuild test -scheme Trocket -destination 'platform=iOS Simulator,name=iPhone
 
 **验证补强**：新增 38 个单测（含 detour 回归、rule_set 摘除、探针配置、平均时延）；新增
 `-TrocketAutoConnect` / `-TrocketAutoLatency` 调试启动参数，用于有线脚本化验证（无需人手点击）。
+
+## 8. 国内直连与「规则 / 全局」开关（2026-10-10）
+
+**问题（用户真机反馈）**：连接后国内流量也走代理。定位见 research.md R11：
+订阅里的国内直连规则引用**远端** `rule_set`，内核启动时下载失败即 FATAL，因此过去把
+规则集连同引用规则一起摘掉 —— 国内直连规则消失，剩余流量按第一个出站走，于是全部进代理。
+
+**修复**：远端规则集先本地化、拿不到才摘除（`ConfigMigration.localizeRemoteRuleSets`）；
+内置 `geosite-cn` / `geoip-cn` 离线保底（`Resources/RuleSets/`，随包分发）；
+导入时主 App 并发缓存其余远端规则集进 App Group 容器（`RuleSetStore.prefetch`）；
+订阅缺国内直连规则时兜底补一条（`ConfigShaping.ensureChinaDirectRule`）；
+新增「规则 / 全局」开关，走内核 Clash 模式，切换不断线（`RoutingMode` + `LibboxCommandClient.setClashMode`）。
+
+**本机证据（不需要设备）**
+
+| 检查 | 命令/方式 | 结果 |
+|---|---|---|
+| 设备 SDK 编译 + 模拟器单测 | `./scripts/verify.sh` | PASS：设备编译通过；**49 个单测全过**（新增 16 个：规则集改写/兜底/模式开关/Clash 生成） |
+| 整形后的真实订阅配置 | `swiftc` 编译 `Sources/Shared/*.swift` + 生成器 → `sing-box check`（1.14.2，本机构建） | **CHECK OK**；规则集已改写为容器内本地文件 |
+| Clash 兜底转换路径 | 同上 | **CHECK OK**；生成的配置首次带有国内直连与 `clash_mode` 规则 |
+| 最坏情况（订阅无任何规则） | 同上 | **CHECK OK**；自动补出「CN → direct」与 `clash_mode` 规则 |
+| 规则集确实被内核读取（反证） | 把 `geosite-cn.srs` 移走后重跑 `check` | **FATAL: open …/rule-set/geosite-cn.srs: no such file or directory**；还原后 OK |
+
+**仍未验证（需要真机）**：国内站点是否真的直连、切「全局」后出口 IP 是否变化、
+国内 App 是否正常 —— 步骤见 quickstart 第 3 节第 8–10 项；结果待补记。

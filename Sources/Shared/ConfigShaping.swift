@@ -47,8 +47,8 @@ public enum ConfigShaping {
         public let migrationNotes: [String]
     }
 
-    /// 整形：迁移旧语法 → 替换入站 → 校验 → 返回可直接写入 profile.json 的紧凑 JSON。
-    public static func shape(subscription data: Data) throws -> ShapedProfile {
+    /// 整形：迁移旧语法 → 本地化规则集 → 补国内直连/模式规则 → 替换入站 → 校验 → 返回可直接写入 profile.json 的紧凑 JSON。
+    public static func shape(subscription data: Data, base: URL? = nil) throws -> ShapedProfile {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw TrocketError.unparsableSubscription
         }
@@ -56,14 +56,20 @@ public enum ConfigShaping {
             throw TrocketError.missingOutbounds
         }
 
+        // 内置规则集必须先落到容器：下面的本地化改写依赖它（首次运行、或内置文件更新过时）
+        RuleSetStore.ensureBundled(base: base)
+
         // 迁移必须在替换入站之前：旧配置的 sniff/domain_strategy 写在入站里，
         // 替换后就看不到了，而它们要转成路由动作。
         var shaped = root
         var migration = ConfigMigration.migrate(&shaped)
-        // 远端规则集若没有本地文件，服务启动时下载失败会 FATAL（实测），这里直接摘掉并告知用户。
-        let stripped = ConfigMigration.stripUnavailableRemoteRuleSets(&shaped)
-        if !stripped.isEmpty {
-            migration.notes.append("移除无法离线使用的远端规则集：\(stripped.joined(separator: "、"))")
+        // 远端规则集改写成容器内的本地文件；拿不到的才摘除并提示（详见 RuleSetStore）
+        let localization = ConfigMigration.localizeRemoteRuleSets(&shaped, base: base)
+        if !localization.localized.isEmpty {
+            migration.notes.append("分流规则集已改用本地文件：\(localization.localized.joined(separator: "、"))")
+        }
+        if !localization.removed.isEmpty {
+            migration.notes.append("移除无法离线使用的远端规则集：\(localization.removed.joined(separator: "、"))")
         }
         shaped["inbounds"] = inbounds()
 
@@ -72,10 +78,89 @@ public enum ConfigShaping {
         }
         let catalog = try catalog(fromOutbounds: migratedOutbounds)
         guard !catalog.isEmpty else { throw TrocketError.noNodes }
+
+        // 兜底：订阅里没有国内直连规则就补一条；再补齐「规则 / 全局」开关依赖的 clash_mode 规则
+        if let note = ensureChinaDirectRule(&shaped, base: base) {
+            migration.notes.append(note)
+        }
+        migration.notes.append(contentsOf: ensureClashModeRules(&shaped, primaryTag: catalog.primaryGroup?.tag))
+
         guard let result = try? JSONSerialization.data(withJSONObject: shaped, options: [.sortedKeys]) else {
             throw TrocketError.unparsableSubscription
         }
         return ShapedProfile(data: result, migrationNotes: migration.notes)
+    }
+
+    /// 国内直连兜底：订阅里没有「CN 规则集 → direct」这条规则时补一条。
+    ///
+    /// 放在所有规则之后：服务商自己的分流优先级更高，我们只兜底。
+    /// 内置规则集不可用（单元测试或异常打包）时什么都不做，交给上层提示。
+    static func ensureChinaDirectRule(_ root: inout [String: Any], base: URL? = nil) -> String? {
+        guard var route = root["route"] as? [String: Any] else { return nil }
+        var ruleSets = route["rule_set"] as? [[String: Any]] ?? []
+        var localTags: [String] = []
+        for name in RuleSetStore.bundledNames {
+            let tag = String(name.dropLast(4))
+            guard let local = RuleSetStore.localURL(fileName: name, base: base) else { continue }
+            localTags.append(tag)
+            if !ruleSets.contains(where: { $0["tag"] as? String == tag }) {
+                ruleSets.append(["tag": tag, "type": "local", "format": "binary", "path": local.path])
+            }
+        }
+        guard !localTags.isEmpty else { return nil }
+        route["rule_set"] = ruleSets
+
+        var rules = route["rules"] as? [[String: Any]] ?? []
+        let hasChinaDirect = rules.contains { rule in
+            guard (rule["outbound"] as? String) == "direct",
+                  let referenced = rule["rule_set"] as? [String] else { return false }
+            return !Set(referenced).isDisjoint(with: localTags)
+        }
+        if !hasChinaDirect {
+            rules.append(["rule_set": localTags, "outbound": "direct"])
+            route["rules"] = rules
+            root["route"] = route
+            return "已补充国内直连规则（\(localTags.joined(separator: " + "))）"
+        }
+        root["route"] = route
+        return nil
+    }
+
+    /// 补齐内核 Clash 模式规则，让「规则 / 全局」开关对所有订阅都能生效。
+    ///
+    /// 原理：开关走内核的 Clash 模式（`rule` / `global`），模式由配置里的 `clash_mode` 规则落地；
+    /// 服务商配置通常自带，没有的这里补上，否则切到「全局」会毫无反应。
+    static func ensureClashModeRules(_ root: inout [String: Any], primaryTag: String?) -> [String] {
+        var notes: [String] = []
+        guard var route = root["route"] as? [String: Any] else { return notes }
+        var rules = route["rules"] as? [[String: Any]] ?? []
+        // 插在第一条业务规则之前、sniff 之类的动作规则之后
+        let anchor = rules.firstIndex { $0["action"] == nil } ?? rules.count
+
+        if let primaryTag = primaryTag, !primaryTag.isEmpty,
+           !rules.contains(where: { $0["clash_mode"] as? String == "global" }) {
+            rules.insert(["clash_mode": "global", "outbound": primaryTag], at: anchor)
+            notes.append("已补充全局模式规则")
+        }
+        if !rules.contains(where: { $0["clash_mode"] as? String == "direct" }) {
+            rules.insert(["clash_mode": "direct", "outbound": "direct"], at: min(anchor + 1, rules.count))
+            notes.append("已补充直连模式规则")
+        }
+        route["rules"] = rules
+        root["route"] = route
+
+        if var dns = root["dns"] as? [String: Any] {
+            var dnsRules = dns["rules"] as? [[String: Any]] ?? []
+            let hasRemoteServer = (dns["servers"] as? [[String: Any]])?
+                .contains { $0["tag"] as? String == "remote" } ?? false
+            if hasRemoteServer, !dnsRules.contains(where: { $0["clash_mode"] as? String == "global" }) {
+                dnsRules.insert(["clash_mode": "global", "server": "remote"], at: 0)
+                dns["rules"] = dnsRules
+                root["dns"] = dns
+                notes.append("已补充全局模式 DNS 规则")
+            }
+        }
+        return notes
     }
 
     /// 从已整形的配置里读取线路清单（未连接也能显示列表）。

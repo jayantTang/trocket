@@ -84,6 +84,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         } catch {
             throw failure("配置加载失败：\((error as NSError).localizedDescription)", to: container)
         }
+
+        // 路由模式（规则 / 全局）由内核 Clash 模式承载，扩展侧没有可用的绑定，
+        // 由主 App 在命令通道连上后下发（见 AppModel.pushRoutingModeToKernel）。
+
         logger.info("tunnel started")
         TunnelLog.write("startTunnel done", to: container)
 

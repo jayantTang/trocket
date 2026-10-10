@@ -37,6 +37,13 @@ targets:
       - path: Sources/App
       - path: Sources/Shared
       - path: Resources
+        excludes:
+          - "RuleSets/**"
+      # 内置分流规则集：用文件夹引用整包拷进 bundle（RuleSets/geosite-cn.srs …），
+      # 首次启动由 RuleSetStore 拷进 App Group 容器供内核加载（见 RuleSetStore.swift）
+      - path: Resources/RuleSets
+        type: folder
+        buildPhase: resources
     dependencies:
       - target: TrocketTunnel
         embed: true

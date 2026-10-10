@@ -14,6 +14,7 @@ import base64
 import json
 import os
 import ssl
+import subprocess
 import sys
 import time
 import urllib.error
@@ -63,7 +64,37 @@ def call(method: str, path: str, body=None, retries: int = 4):
         except (urllib.error.URLError, ssl.SSLError, TimeoutError) as e:  # 网络抖动重试
             last = e
             time.sleep(2 + attempt * 2)
+    # 本机装了代理/隧道时，python 的 TLS 栈有时会被中途重置（curl 正常），
+    # 这时退回 curl：签名仍在这里做，只是换个 HTTP 客户端发出去。
+    if command_available("curl"):
+        status, payload = call_via_curl(method, path, body)
+        if status:
+            return status, payload
     raise SystemExit(f"请求失败：{method} {path}：{last}")
+
+
+def command_available(name: str) -> bool:
+    return any(os.access(os.path.join(p, name), os.X_OK) for p in os.environ.get("PATH", "").split(os.pathsep))
+
+
+def call_via_curl(method: str, path: str, body=None):
+    cmd = ["curl", "-g", "-sS", "--max-time", "90", "-X", method,
+           "-H", f"Authorization: Bearer {TOK}", "-H", "Content-Type: application/json",
+           "-w", "\n%{http_code}", API + path]
+    if body is not None:
+        cmd += ["--data-binary", json.dumps(body)]
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    except Exception:
+        return None, {}
+    if out.returncode != 0:
+        return None, {}
+    raw, _, code = out.stdout.rpartition("\n")
+    try:
+        status = int(code.strip())
+    except ValueError:
+        return None, {}
+    return status, (json.loads(raw) if raw.strip() else {})
 
 
 def version_id() -> str:

@@ -1,11 +1,13 @@
 import Foundation
 import Libbox
 
-/// 命令通道的抽象：延迟测试与线路切换只依赖这两个动作，便于单元测试注入假实现。
+/// 命令通道的抽象：延迟测试、线路切换与路由模式只依赖这几个动作，便于单元测试注入假实现。
 protocol CommandChannelProtocol: AnyObject {
     /// 测速一次**整个策略组**：sing-box 的 URLTest 对 selector/urltest 组会遍历其全部成员。
     func urlTest(groupTag: String) throws
     func selectOutbound(groupTag: String, outboundTag: String) throws
+    /// 切换内核 Clash 模式（`rule` / `global`），不断线生效。
+    func setRoutingMode(_ mode: RoutingMode) throws
 }
 
 /// 主 App 侧与扩展内核通信的通道。
@@ -22,6 +24,8 @@ final class ControlChannel: NSObject, ObservableObject, CommandChannelProtocol {
 
     /// 收到某条线路的延迟时回调（tag, 毫秒）。0 表示超时。
     var onDelay: ((String, Int) -> Void)?
+    /// 命令通道连上（含重连）后的回调：用于把用户选择的「规则 / 全局」模式推给内核。
+    var onAttached: (() -> Void)?
 
     private var client: LibboxCommandClient?
     private var serviceReady = false
@@ -99,6 +103,11 @@ final class ControlChannel: NSObject, ObservableObject, CommandChannelProtocol {
         try client.selectOutbound(groupTag, outboundTag: outboundTag)
     }
 
+    func setRoutingMode(_ mode: RoutingMode) throws {
+        guard let client else { throw TrocketError.selectFailed("命令通道未连接") }
+        try client.setClashMode(mode.clashMode)
+    }
+
     // MARK: - 主线程刷新
 
     private func publish(_ mutate: @escaping () -> Void) {
@@ -115,7 +124,10 @@ final class ControlChannel: NSObject, ObservableObject, CommandChannelProtocol {
 extension ControlChannel: LibboxCommandClientHandlerProtocol {
 
     func connected() {
-        publish { self.attached = true }
+        publish {
+            self.attached = true
+            self.onAttached?()
+        }
     }
 
     func disconnected(_ message: String?) {

@@ -167,13 +167,45 @@ final class DetourAndProbeTests: XCTestCase {
           }
         }
         """.utf8)) as? [String: Any])
-        let stripped = ConfigMigration.stripUnavailableRemoteRuleSets(&root)
-        XCTAssertEqual(stripped, ["geosite-cn"])
+        // base 指向空目录：本地拿不到规则集，只能摘除（真机上是"内置也没有、下载也失败"的兜底路径）
+        let empty = try makeRuleSetDirectory()
+        let result = ConfigMigration.localizeRemoteRuleSets(&root, base: empty)
+        XCTAssertEqual(result.removed, ["geosite-cn"])
+        XCTAssertTrue(result.localized.isEmpty)
         let route = try XCTUnwrap(root["route"] as? [String: Any])
         XCTAssertTrue((route["rule_set"] as? [[String: Any]])?.isEmpty == true)
         let rules = try XCTUnwrap(route["rules"] as? [[String: Any]])
         XCTAssertEqual(rules.count, 1, "引用被摘除规则集的规则要一起去掉")
         XCTAssertTrue(rules[0]["ip_is_private"] as? Bool == true)
+    }
+
+    /// 本地有规则集文件时必须改写成本地引用，而不是摘除——国内直连就靠这条活下来。
+    func testRemoteRuleSetIsLocalizedWhenFileExists() throws {
+        let base = try makeRuleSetDirectory()
+        try writeRuleSet(named: "geosite-cn.srs", in: base)
+        var root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data("""
+        {
+          "outbounds": [{"type": "direct", "tag": "direct"}],
+          "route": {
+            "rule_set": [{"tag": "geosite-cn", "type": "remote", "format": "binary",
+                          "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs"}],
+            "rules": [{"rule_set": ["geosite-cn"], "outbound": "direct"}],
+            "final": "direct"
+          }
+        }
+        """.utf8)) as? [String: Any])
+        let result = ConfigMigration.localizeRemoteRuleSets(&root, base: base)
+        XCTAssertEqual(result.localized, ["geosite-cn"])
+        XCTAssertTrue(result.removed.isEmpty)
+
+        let route = try XCTUnwrap(root["route"] as? [String: Any])
+        let entry = try XCTUnwrap((route["rule_set"] as? [[String: Any]])?.first)
+        XCTAssertEqual(entry["type"] as? String, "local")
+        XCTAssertEqual(entry["format"] as? String, "binary")
+        XCTAssertEqual(entry["path"] as? String, base.appendingPathComponent("rule-set/geosite-cn.srs").path)
+        let rules = try XCTUnwrap(route["rules"] as? [[String: Any]])
+        XCTAssertEqual(rules.count, 1, "改写不能丢规则")
+        XCTAssertEqual(rules[0]["outbound"] as? String, "direct")
     }
 
     func testProbeConfigHasNoInboundAndKeepsOutbounds() throws {
@@ -207,7 +239,7 @@ extension ConfigMigrationTests {
     func testDNSRuleReferencingStrippedRuleSetIsRemoved() throws {
         let json = #"{"dns":{"servers":[{"type":"https","server":"223.5.5.5","tag":"local"}],"rules":[{"rule_set":["geosite-cn"],"server":"local"},{"clash_mode":"direct","server":"local"}]},"outbounds":[{"type":"direct","tag":"direct"}],"route":{"rule_set":[{"tag":"geosite-cn","type":"remote","format":"binary","url":"https://example.com/a.srs"}],"rules":[{"rule_set":["geosite-cn"],"outbound":"direct"}],"final":"direct"}}"#
         var root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
-        _ = ConfigMigration.stripUnavailableRemoteRuleSets(&root)
+        _ = ConfigMigration.localizeRemoteRuleSets(&root, base: try makeRuleSetDirectory())
         let dnsRules = try XCTUnwrap((root["dns"] as? [String: Any])?["rules"] as? [[String: Any]])
         XCTAssertEqual(dnsRules.count, 1, "引用被摘除规则集的 DNS 规则必须一起去掉")
         XCTAssertEqual(dnsRules.first?["clash_mode"] as? String, "direct")

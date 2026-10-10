@@ -12,7 +12,9 @@ public enum ClashYAML {
         public let skipped: Int
     }
 
-    public static func convert(_ text: String) throws -> Result {
+    /// Clash → sing-box。`base` 是规则集目录（App Group 容器），用于把国内直连规则指到本地文件；
+    /// 传 nil 或内置规则集不可用时，生成的配置依旧可用，只是没有国内直连分流。
+    public static func convert(_ text: String, base: URL? = nil) throws -> Result {
         let entries = parseProxies(text)
         var outbounds: [[String: Any]] = []
         var nodeTags: [String] = []
@@ -45,27 +47,57 @@ public enum ClashYAML {
         ])
         outbounds.append(["type": "direct", "tag": "direct"])
 
-        let root: [String: Any] = [
-            "dns": [
-                "servers": [
-                    ["tag": "remote", "address": "https://1.1.1.1/dns-query", "detour": "节点选择"],
-                    ["tag": "local", "address": "https://223.5.5.5/dns-query", "detour": "direct"],
-                ],
-                "rules": [["outbound": ["any"], "server": "local"]],
-                "strategy": "prefer_ipv4",
+        // 国内直连：Clash 的规则我们不复刻，但至少要保证国内域名/IP 不走代理（详见 RuleSetStore）
+        RuleSetStore.ensureBundled(base: base)
+        var ruleSets: [[String: Any]] = []
+        var chinaTags: [String] = []
+        for name in RuleSetStore.bundledNames {
+            guard let local = RuleSetStore.localURL(fileName: name, base: base) else { continue }
+            let tag = String(name.dropLast(4))
+            chinaTags.append(tag)
+            ruleSets.append(["tag": tag, "type": "local", "format": "binary", "path": local.path])
+        }
+
+        var rules: [[String: Any]] = [
+            ["action": "sniff"],
+            // 开关走内核 Clash 模式：全局 = 全部走所选线路，直连 = 全部直连
+            ["clash_mode": "global", "outbound": "节点选择"],
+            ["clash_mode": "direct", "outbound": "direct"],
+            ["ip_is_private": true, "outbound": "direct"],
+        ]
+        if !chinaTags.isEmpty {
+            rules.append(["rule_set": chinaTags, "outbound": "direct"])
+        }
+
+        var dns: [String: Any] = [
+            "servers": [
+                ["type": "https", "server": "223.5.5.5", "tag": "local", "detour": "direct"],
+                ["type": "https", "server": "1.1.1.1", "tag": "remote", "detour": "节点选择"],
             ],
+            "rules": [
+                ["clash_mode": "global", "server": "remote"],
+            ],
+            "strategy": "prefer_ipv4",
+        ]
+        if !chinaTags.isEmpty {
+            dns["rules"] = [["clash_mode": "global", "server": "remote"],
+                            ["rule_set": ["geosite-cn"], "server": "local"]]
+        }
+
+        var route: [String: Any] = [
+            "auto_detect_interface": true,
+            "final": "节点选择",
+            // 1.14 语法：嗅探与默认解析器都在路由层，不在入站里
+            "default_domain_resolver": ["server": "local", "strategy": "prefer_ipv4"],
+            "rules": rules,
+        ]
+        if !ruleSets.isEmpty { route["rule_set"] = ruleSets }
+
+        let root: [String: Any] = [
+            "dns": dns,
             "inbounds": ConfigShaping.inbounds(),
             "outbounds": outbounds,
-            "route": [
-                "auto_detect_interface": true,
-                "final": "节点选择",
-                // 1.14 语法：嗅探与默认解析器都在路由层，不在入站里
-                "default_domain_resolver": ["server": "local", "strategy": "prefer_ipv4"],
-                "rules": [
-                    ["action": "sniff"],
-                    ["ip_is_private": true, "outbound": "direct"],
-                ],
-            ],
+            "route": route,
         ]
 
         guard let data = try? JSONSerialization.data(withJSONObject: root, options: [.sortedKeys]) else {

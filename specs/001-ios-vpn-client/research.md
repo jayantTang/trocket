@@ -208,3 +208,38 @@ swiftc -O -o /tmp/shapedgen Sources/Shared/*.swift /tmp/main.swift   # main.swif
 
 **已知取舍**：`rcode://success`（服务商用来"黑洞"某些域名）在新语法里没有等价服务器类型，
 该服务器本身未被任何规则引用，故丢弃；若将来服务商引用了它，需要改用路由 `reject` 动作。
+
+## R11. 国内直连：规则集必须落本地，缺失时兜底补规则
+
+**问题（用户真机反馈）**：连接后国内流量也走代理。定位到三个叠加原因：
+
+1. 应用自己不生成任何分流规则，完全沿用订阅下发的规则；
+2. 订阅里的国内直连规则（`rule_set: [geosite-cn, geoip-cn] → direct`）引用的是**远端规则集**
+   （GitHub raw），而远端 `rule_set` 由内核在**服务启动时**下载，失败即 FATAL ——
+   为不炸，`ConfigMigration` 过去把这类规则集**连同引用它的整条规则**一起摘掉，
+   国内直连规则因此消失；
+3. 摘除后 `route.final` 缺省，内核按第一个出站（`节点选择`）走，于是全部流量进代理。
+
+**决策**：远端规则集不再一律摘除，而是**先本地化，拿不到才摘除**，并补三层保底：
+
+| 层 | 内容 | 位置 |
+|---|---|---|
+| 内置保底 | `geosite-cn.srs`、`geoip-cn.srs`（合计 90KB）随包分发 | `Resources/RuleSets/` |
+| 联网缓存 | 导入订阅时，主 App 把其余远端规则集并发下载进 App Group 容器（最多 8 个） | `RuleSetStore.prefetch` |
+| 兜底规则 | 整形后若没有任何「CN 规则集 → direct」规则，就在规则末尾补一条 | `ConfigShaping.ensureChinaDirectRule` |
+
+改写发生在 `ConfigMigration.localizeRemoteRuleSets`：把 `type: remote` 换成
+`{"type":"local","format":"binary","path":"<容器绝对路径>"}`；只有本地确实没有文件时才摘除并提示。
+**必须内置的原因**：这两个源在 GitHub raw，国内网络基本不可达，联网下载不能作为唯一路径。
+
+**路由开关**：菜单提供「规则 / 全局」，走内核 Clash 模式（`LibboxCommandClient.setClashMode`），
+不断线生效。订阅一般自带 `clash_mode` 规则，没有的由 `ConfigShaping.ensureClashModeRules` 补
+（含 DNS 侧的 `clash_mode: global → remote`）。扩展侧**没有** `setClashMode` 绑定，
+所以隧道重启后由主 App 在命令通道连上时把模式补推一次（`AppModel.pushRoutingModeToKernel`）。
+
+**判定边界（已知限制）**：域名库按域名匹配、IP 库按解析后的地址匹配，国内域名解析到境外 CDN
+时会判成"境外"而走代理，反之亦然；DNS 侧同步分流（国内域名用 `223.5.5.5` 直连解析）以降低误判。
+
+**验证方式**：沿用 R10 的本机校验管线（swiftc 生成整形后的配置 → `sing-box check`），
+确认内核接受本地规则集与补出来的规则；分流是否真的生效仍需真机按
+`specs/001-ios-vpn-client/quickstart.md` 复验。

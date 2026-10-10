@@ -26,6 +26,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var latencySource: LatencySource = .probe
     @Published var isShowingDiagnostics = false
     @Published private(set) var diagnosticsLog: [String] = []
+    /// 路由模式：规则（国内直连）/ 全局（全部走代理）。持久化在 App Group，隧道启动时恢复。
+    @Published private(set) var routingMode: RoutingMode = .rule
 
     let tunnel = TunnelController()
     let channel = ControlChannel()
@@ -49,7 +51,14 @@ final class AppModel: ObservableObject {
         }
         store = resolvedStore
         service = resolvedStore.map { SubscriptionService(store: $0) }
+        routingMode = RoutingMode.load()
+        // 内置规则集（国内直连保底）要在任何一次导入/连接之前落进容器
+        RuleSetStore.ensureBundled()
         wireLatency()
+        // 隧道每次启动内核都回到默认的 rule 模式，命令通道连上后把用户选择补回去
+        channel.onAttached = { [weak self] in
+            Task { @MainActor in self?.pushRoutingModeToKernel() }
+        }
     }
 
     var tunnelState: TunnelState { tunnel.state }
@@ -210,6 +219,32 @@ final class AppModel: ObservableObject {
             try channel.selectOutbound(groupTag: primaryGroupTag, outboundTag: tag)
         } catch {
             errorMessage = TrocketError.selectFailed((error as NSError).localizedDescription).errorDescription
+        }
+    }
+
+    // MARK: - 路由模式
+
+    /// 切换「规则 / 全局」：先落盘，连接中则立刻下发给内核（不断线生效）。
+    func setRoutingMode(_ mode: RoutingMode) {
+        guard mode != routingMode else { return }
+        routingMode = mode
+        RoutingMode.save(mode)
+        guard tunnel.state.isConnected else { return }
+        do {
+            try channel.setRoutingMode(mode)
+        } catch {
+            errorMessage = TrocketError.selectFailed((error as NSError).localizedDescription).errorDescription
+        }
+    }
+
+    /// 命令通道连上后把当前模式推给内核（隧道重启会回到内核默认的 rule 模式）。
+    private func pushRoutingModeToKernel() {
+        guard tunnel.state.isConnected else { return }
+        do {
+            try channel.setRoutingMode(routingMode)
+            TunnelLog.write("routing mode pushed: \(routingMode.clashMode)")
+        } catch {
+            TunnelLog.write("routing mode push failed: \((error as NSError).localizedDescription)")
         }
     }
 

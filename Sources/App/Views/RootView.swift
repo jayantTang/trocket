@@ -77,10 +77,20 @@ struct RootView: View {
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .navigationBarLeading) {
             Menu {
-                Button("订阅…") { showingSubscription = true }
-                Button("诊断日志…") {
-                    model.refreshDiagnostics()
-                    model.isShowingDiagnostics = true
+                Section("路由模式") {
+                    Button(model.routingMode == .rule ? "规则（国内直连）✓" : "规则（国内直连）") {
+                        model.setRoutingMode(.rule)
+                    }
+                    Button(model.routingMode == .global ? "全局（全部走线路）✓" : "全局（全部走线路）") {
+                        model.setRoutingMode(.global)
+                    }
+                }
+                Section {
+                    Button("订阅…") { showingSubscription = true }
+                    Button("诊断日志…") {
+                        model.refreshDiagnostics()
+                        model.isShowingDiagnostics = true
+                    }
                 }
             } label: {
                 Text("菜单")

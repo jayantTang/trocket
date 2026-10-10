@@ -185,28 +185,59 @@ public enum ConfigMigration {
         return Result(notes: notes)
     }
 
-    /// 剔除仍然指向远端、且没有本地缓存文件的 rule_set 及其引用规则。
+    /// 远端 rule_set 的本地化结果。
+    public struct RuleSetLocalization: Equatable {
+        /// 已改写成本地文件引用的 tag。
+        public var localized: [String] = []
+        /// 本地拿不到、只能摘除（连同引用它的规则）的 tag。
+        public var removed: [String] = []
+
+        public init(localized: [String] = [], removed: [String] = []) {
+            self.localized = localized
+            self.removed = removed
+        }
+    }
+
+    /// 把远端 rule_set 改写成本地文件引用；本地拿不到的才连同引用规则一起摘除。
     ///
-    /// 为什么必须做：远端 rule_set 在**服务启动时**下载，失败即 FATAL，用户看到的就是"连不上"。
-    /// 应用侧导入时会先把它们下载成本地文件（`RuleSetLocalizer`），这里只兜底处理导入前落盘的旧配置。
+    /// 为什么必须改写而不是摘除：远端 rule_set 在**服务启动时**下载，失败即 FATAL（用户看到"连不上"）；
+    /// 但直接摘掉会把国内直连规则（`geosite-cn` / `geoip-cn`）一起带走，表现为"国内流量也走代理"。
+    /// 内置保底由 `RuleSetStore.ensureBundled` 落进容器，主 App 导入时还会缓存其它远端规则集。
     @discardableResult
-    public static func stripUnavailableRemoteRuleSets(_ root: inout [String: Any]) -> [String] {
+    public static func localizeRemoteRuleSets(_ root: inout [String: Any],
+                                              base: URL? = nil) -> RuleSetLocalization {
+        var result = RuleSetLocalization()
         guard var route = root["route"] as? [String: Any],
-              let ruleSets = route["rule_set"] as? [[String: Any]] else { return [] }
+              let ruleSets = route["rule_set"] as? [[String: Any]] else { return result }
 
         var removedTags = Set<String>()
         var kept: [[String: Any]] = []
         for ruleSet in ruleSets {
-            let isRemote = (ruleSet["type"] as? String) == "remote"
-            let path = ruleSet["path"] as? String
-            let hasLocalFile = path.map { FileManager.default.fileExists(atPath: $0) } ?? false
-            if isRemote && !hasLocalFile, let tag = ruleSet["tag"] as? String {
-                removedTags.insert(tag)
-            } else {
-                kept.append(ruleSet)
+            let tag = ruleSet["tag"] as? String
+            if (ruleSet["type"] as? String) == "remote" {
+                if let tag = tag,
+                   let fileName = RuleSetStore.fileName(tag: tag, remoteURL: ruleSet["url"] as? String),
+                   let local = RuleSetStore.localURL(fileName: fileName, base: base) {
+                    var entry: [String: Any] = ["tag": tag, "type": "local", "path": local.path]
+                    entry["format"] = (ruleSet["format"] as? String) ?? "binary"
+                    kept.append(entry)
+                    result.localized.append(tag)
+                } else if let tag = tag {
+                    removedTags.insert(tag)
+                    result.removed.append(tag)
+                }
+                continue
             }
+            // 已经是本地引用：路径不在就当摘除处理（旧配置可能指向已清理的缓存）
+            if let path = ruleSet["path"] as? String, !FileManager.default.fileExists(atPath: path), let tag = tag {
+                removedTags.insert(tag)
+                result.removed.append(tag)
+                continue
+            }
+            kept.append(ruleSet)
         }
-        guard !removedTags.isEmpty else { return [] }
+
+        guard !removedTags.isEmpty || !result.localized.isEmpty else { return result }
 
         route["rule_set"] = kept
         if let rules = route["rules"] as? [[String: Any]] {
@@ -234,7 +265,9 @@ public enum ConfigMigration {
         }
 
         root["route"] = route
-        return Array(removedTags).sorted()
+        result.removed.sort()
+        result.localized.sort()
+        return result
     }
 
     private static func outboundsForDirectCheck(in root: [String: Any]) -> [[String: Any]] {
@@ -249,11 +282,13 @@ public enum ConfigMigration {
             return configText
         }
         var result = migrate(&root)
-        let stripped = stripUnavailableRemoteRuleSets(&root)
-        if !stripped.isEmpty {
-            result.notes.append("移除无法离线使用的远端规则集 \(stripped.joined(separator: ", "))")
+        let localization = localizeRemoteRuleSets(&root)
+        if !localization.removed.isEmpty {
+            result.notes.append("移除无法离线使用的远端规则集 \(localization.removed.joined(separator: ", "))")
         }
-        guard !result.notes.isEmpty,
+        // 本地化本身不需要打扰用户（导入时已经做过一次），但它会改动配置，必须落盘
+        let localized = !localization.localized.isEmpty
+        guard !result.notes.isEmpty || localized,
               let upgraded = try? JSONSerialization.data(withJSONObject: root, options: [.sortedKeys]),
               let text = String(data: upgraded, encoding: .utf8) else {
             return configText

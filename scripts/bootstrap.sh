@@ -22,6 +22,14 @@ if ! command -v xcodegen >/dev/null; then
 fi
 
 if [ -z "${TEAM_ID:-}" ]; then
+  # 优先沿用上一次生成的团队/前缀：机器上常装了多个开发者证书，
+  # 盲取第一个身份会悄悄换成另一个团队的 Bundle ID（App 记录对不上，上传才发现）。
+  if [ -f project.generated.yml ]; then
+    TEAM_ID="$(sed -n 's/.*DEVELOPMENT_TEAM: "\([A-Z0-9]\{10\}\)".*/\1/p' project.generated.yml | head -1)"
+  fi
+fi
+
+if [ -z "${TEAM_ID:-}" ]; then
   TEAM_ID="$(security find-identity -v -p codesigning 2>/dev/null \
     | sed -n 's/.*Apple Development: .*(\([A-Z0-9]\{10\}\))".*/\1/p' \
     | head -1)"

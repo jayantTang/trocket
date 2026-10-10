@@ -21,6 +21,9 @@
 - **线路列表**：展示全部线路及其倍率标识，显示订阅用量与到期时间
 - **延迟测量**：未连接状态下亦可测量全部线路延迟，支持按延迟排序
 - **连接控制**：开关控制系统 VPN 配置；连接状态下切换线路无需重新拨号
+- **国内直连**：内置 `geosite-cn` / `geoip-cn` 规则集，国内域名与 IP 自动直连；
+  订阅里的远端规则集在导入时缓存进 App Group 容器并改写为本地引用（见 `Sources/Shared/RuleSetStore.swift`）
+- **路由模式**：菜单内可切「规则 / 全局」，走内核 Clash 模式，切换不断线
 - **本地优先**：配置与订阅信息仅保存在设备本地，离线可用；不集成统计与崩溃上报 SDK
 
 有意不实现的能力（见 `.specify/memory/constitution.md` 第 II 条）：
@@ -96,6 +99,10 @@ open Trocket.xcodeproj
   TUIC / WireGuard 不受影响；确有需要时使用 `INCLUDE_NAIVE=1 ./scripts/build-libbox.sh`。
 - 服务端若下发 1.11/1.12 时期的旧版语法，启动前会迁移到 1.14（DNS、注册项、入站字段、
   规则集、出站 ALPN 等），规则与回归用例见 `Sources/Shared/ConfigMigration.swift` 与 `Tests/`。
+- 分流规则集一律落到本地再交给内核：远端 `rule_set` 在**服务启动时**下载，失败即 FATAL（实测），
+  所以内置 `geosite-cn` / `geoip-cn` 作离线保底，其余远端规则集由主 App 在导入时下载进
+  App Group 容器（`Resources/RuleSets/`、`Sources/Shared/RuleSetStore.swift`）。
+  拿不到的规则集才会摘除，并在界面提示。
 
 ## 测试与验证
 

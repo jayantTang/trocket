@@ -13,6 +13,8 @@ final class SubscriptionService {
         let skippedNodes: Int
         /// 为适配当前内核做的语法迁移说明
         let migrationNotes: [String]
+        /// 规则集缓存情况（下载失败时提示，见 RuleSetStore）
+        var ruleSetNote: String?
 
         var warning: String? {
             var parts: [String] = []
@@ -21,6 +23,9 @@ final class SubscriptionService {
             }
             if !migrationNotes.isEmpty {
                 parts.append("订阅用的是旧版配置语法，已自动迁移 \(migrationNotes.count) 处")
+            }
+            if let ruleSetNote {
+                parts.append(ruleSetNote)
             }
             return parts.isEmpty ? nil : parts.joined(separator: "；")
         }
@@ -79,16 +84,32 @@ final class SubscriptionService {
             throw TrocketError.unparsableSubscription
         }
 
+        let base = try? AppConfiguration.sharedContainerURL()
+        // 内置规则集先就位：本地化改写依赖它们（国内直连保底）
+        RuleSetStore.ensureBundled(base: base)
+
+        var ruleSetNote: String?
         let shaped: ConfigShaping.ShapedProfile
         let skipped: Int
         switch format {
         case .singboxJSON:
-            shaped = try ConfigShaping.shape(subscription: data)
+            // 订阅里的分流规则集是远端地址，内核启动时下载失败会 FATAL；
+            // 导入时先在主 App 联网取回本地（拿不到的退回内置规则并提示）
+            if let text = String(data: data, encoding: .utf8) {
+                let remotes = RuleSetStore.remoteRuleSets(inConfig: text)
+                if !remotes.isEmpty {
+                    let outcome = await RuleSetStore.prefetch(remotes, base: base)
+                    if !outcome.failed.isEmpty {
+                        ruleSetNote = "有 \(outcome.failed.count) 个分流规则集未能缓存，已退回内置规则"
+                    }
+                }
+            }
+            shaped = try ConfigShaping.shape(subscription: data, base: base)
             skipped = 0
         case .clashYAML:
             guard let text = String(data: data, encoding: .utf8) else { throw TrocketError.unparsableSubscription }
-            let result = try ClashYAML.convert(text)
-            shaped = try ConfigShaping.shape(subscription: result.config)
+            let result = try ClashYAML.convert(text, base: base)
+            shaped = try ConfigShaping.shape(subscription: result.config, base: base)
             skipped = result.skipped
         }
 
@@ -112,7 +133,8 @@ final class SubscriptionService {
             record: record,
             catalog: catalog,
             skippedNodes: skipped,
-            migrationNotes: shaped.migrationNotes
+            migrationNotes: shaped.migrationNotes,
+            ruleSetNote: ruleSetNote
         )
     }
 
