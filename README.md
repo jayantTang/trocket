@@ -125,6 +125,7 @@ open Trocket.xcodeproj
 | 上传 TestFlight | `APPSTORE_API_ISSUER_ID=... ./scripts/upload-testflight.sh` |
 | 补齐 App Store 描述文件 | `ASC_KEY_ID=... ASC_ISSUER=... python3 scripts/asc-profiles.py ensure` |
 | 换构建 / 从审核中移除 / 重新送审 | `python3 scripts/asc-submit.py status \| attach-build <N> \| remove-from-review \| resubmit` |
+| 上一版已过审时开新版本（复制文案/截图/审核信息） | `python3 scripts/asc-new-version.py plan 1.1` → `create 1.1` |
 | 商店元数据与截图 | `ASC_KEY_ID=... ASC_ISSUER=... python3 scripts/asc.py status \| screenshots <目录>` |
 | 宣传素材（1290×2796 截图、动图、视频） | `python3 promo/make_promo.py` |
 
