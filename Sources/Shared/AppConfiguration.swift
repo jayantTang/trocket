@@ -7,6 +7,11 @@ public enum AppConfiguration {
     /// 升级内核版本时同步修改（见 specs/001-ios-vpn-client/research.md R2）。
     public static let kernelUserAgent = "sing-box/1.14.2"
 
+    /// 补拉节点时使用的 User-Agent：服务商对 Clash 系客户端返回**更全的节点集**
+    /// （实测同一订阅：sing-box 模板 32 条，Clash 模板 44 条，多出美国/德国各 6 条）。
+    /// 见 `NodeSupplement`。
+    public static let clashUserAgent = "ClashforWindows/0.20.39"
+
     /// 当前内核版本，写入隧道启动参数用于判断配置是否过期。
     public static let kernelVersion = "1.14.2"
 

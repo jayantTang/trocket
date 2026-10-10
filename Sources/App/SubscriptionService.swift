@@ -15,6 +15,8 @@ final class SubscriptionService {
         let migrationNotes: [String]
         /// 规则集缓存情况（下载失败时提示，见 RuleSetStore）
         var ruleSetNote: String?
+        /// 从 Clash 模板补齐的节点（服务商对不同客户端返回的节点集不同，见 NodeSupplement）
+        var supplementNote: String?
 
         var warning: String? {
             var parts: [String] = []
@@ -23,6 +25,9 @@ final class SubscriptionService {
             }
             if !migrationNotes.isEmpty {
                 parts.append("订阅用的是旧版配置语法，已自动迁移 \(migrationNotes.count) 处")
+            }
+            if let supplementNote {
+                parts.append(supplementNote)
             }
             if let ruleSetNote {
                 parts.append(ruleSetNote)
@@ -89,7 +94,8 @@ final class SubscriptionService {
         RuleSetStore.ensureBundled(base: base)
 
         var ruleSetNote: String?
-        let shaped: ConfigShaping.ShapedProfile
+        var supplementNote: String?
+        var shaped: ConfigShaping.ShapedProfile
         let skipped: Int
         switch format {
         case .singboxJSON:
@@ -106,6 +112,15 @@ final class SubscriptionService {
             }
             shaped = try ConfigShaping.shape(subscription: data, base: base)
             skipped = 0
+
+            // 服务商对 Clash 系客户端会多给一批节点（实测多出美国/德国各 6 条）：
+            // 再用 Clash UA 拉一次，把 JSON 模板里没有的节点补进来。失败不影响导入。
+            if let clashText = await clashTemplateText(url: url) {
+                if let merged = NodeSupplement.merge(into: shaped.data, clashText: clashText), !merged.added.isEmpty {
+                    shaped = ConfigShaping.ShapedProfile(data: merged.data, migrationNotes: shaped.migrationNotes)
+                    supplementNote = "已补齐 \(merged.added.count) 条线路（服务商对 Clash 客户端额外提供）"
+                }
+            }
         case .clashYAML:
             guard let text = String(data: data, encoding: .utf8) else { throw TrocketError.unparsableSubscription }
             let result = try ClashYAML.convert(text, base: base)
@@ -134,8 +149,23 @@ final class SubscriptionService {
             catalog: catalog,
             skippedNodes: skipped,
             migrationNotes: shaped.migrationNotes,
-            ruleSetNote: ruleSetNote
+            ruleSetNote: ruleSetNote,
+            supplementNote: supplementNote
         )
+    }
+
+    /// 用 Clash UA 再拉一次同一订阅，只为拿更全的节点集。
+    /// 拿不到（超时 / 返回的仍是 JSON / 网络失败）就返回 nil —— 不影响导入。
+    private func clashTemplateText(url: URL) async -> String? {
+        var request = URLRequest(url: url, timeoutInterval: 20)
+        request.setValue(AppConfiguration.clashUserAgent, forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              let text = String(data: data, encoding: .utf8), text.contains("proxies:") else {
+            TunnelLog.write("clash template fetch skipped")
+            return nil
+        }
+        return text
     }
 
     // MARK: - 缓存

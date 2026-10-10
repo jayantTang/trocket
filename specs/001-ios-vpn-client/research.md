@@ -252,3 +252,26 @@ swiftc -O -o /tmp/shapedgen Sources/Shared/*.swift /tmp/main.swift   # main.swif
 **验证方式**：沿用 R10 的本机校验管线（swiftc 生成整形后的配置 → `sing-box check`），
 确认内核接受本地规则集与补出来的规则；分流是否真的生效仍需真机按
 `specs/001-ios-vpn-client/quickstart.md` 复验。
+
+## R12. 服务商按 UA 返回不同节点集：必须补拉 Clash 模板
+
+**问题（用户反馈）**：同一条订阅链接，Shadowrocket 能列出美国/德国节点，我们列不出。
+
+**实测（同一链接，两次 GET）**：
+
+| 请求 UA | 返回 | 节点 |
+|---|---|---|
+| `sing-box/1.14.2`（我们的） | sing-box JSON | **32 条**：香港 13、日本 10、新加坡 9 |
+| `ClashforWindows/0.20.39` | Clash YAML | **44 条**：同上 + **美国 6、德国 6** |
+
+也就是说：**不是解析问题**——服务商的 sing-box 模板里根本没有那 12 条；
+两边共有节点的名字完全一致（所以按 tag 合并是安全的）。
+
+**做法**（`Sources/Shared/NodeSupplement.swift`）：仍以 sing-box 模板为准（保留服务商的分流规则与 DNS），
+导入时用 Clash UA 再拉一次，只把 JSON 里没有的节点补进 `outbounds`，
+并挂到主选择组（第一个 `selector`）与自动选择组（第一个 `urltest`）上，使它们可选、可测速。
+补拉失败、或服务商无视 UA 仍返回 JSON，都只是"没补到"，不影响导入。
+
+**验证**：真实订阅上 32 → 44 条，12 条新节点都在主分组里，合并后的配置通过 `sing-box check`（1.14.2）；
+单测 `NodeSupplementTests`（4 项）覆盖合并、去重、无新增、以及"只动 outbounds 不动服务商规则"。
+`scripts/diagnose-subscription.py` 可随时复现这个对比。

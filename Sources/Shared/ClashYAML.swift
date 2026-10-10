@@ -12,24 +12,30 @@ public enum ClashYAML {
         public let skipped: Int
     }
 
-    /// Clash → sing-box。`base` 是规则集目录（App Group 容器），用于把国内直连规则指到本地文件；
-    /// 传 nil 或内置规则集不可用时，生成的配置依旧可用，只是没有国内直连分流。
-    public static func convert(_ text: String, base: URL? = nil) throws -> Result {
-        let entries = parseProxies(text)
+    /// 只解析 `proxies:` 段并转成 sing-box 出站（不生成整套配置）。
+    /// 「补齐节点」用它：服务商给 sing-box 与 Clash 的模板节点集不同，缺的那些从这里取。
+    public static func nodeOutbounds(from text: String) -> (outbounds: [[String: Any]], skipped: Int) {
         var outbounds: [[String: Any]] = []
-        var nodeTags: [String] = []
         var skipped = 0
-
-        for entry in entries {
+        for entry in parseProxies(text) {
             guard let outbound = makeOutbound(entry) else {
                 skipped += 1
                 continue
             }
             outbounds.append(outbound)
-            nodeTags.append(outbound["tag"] as! String)
         }
+        return (outbounds, skipped)
+    }
+
+    /// Clash → sing-box。`base` 是规则集目录（App Group 容器），用于把国内直连规则指到本地文件；
+    /// 传 nil 或内置规则集不可用时，生成的配置依旧可用，只是没有国内直连分流。
+    public static func convert(_ text: String, base: URL? = nil) throws -> Result {
+        let parsed = nodeOutbounds(from: text)
+        var outbounds = parsed.outbounds
+        let nodeTags = outbounds.compactMap { $0["tag"] as? String }
 
         guard !nodeTags.isEmpty else { throw TrocketError.noNodes }
+        let skipped = parsed.skipped
 
         outbounds.append([
             "type": "selector",
