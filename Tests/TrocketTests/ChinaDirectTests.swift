@@ -61,6 +61,35 @@ final class ChinaDirectTests: XCTestCase {
         XCTAssertEqual(ruleSets.count, 2, "两个内置规则集都要挂上")
     }
 
+    /// App Group 容器路径会随"删除后重装"变化：老 profile 里的绝对路径必须按文件名修好，
+    /// 否则国内直连规则会被静默丢掉（回到"什么都走代理"）。
+    func testStaleLocalRuleSetPathIsRepaired() throws {
+        let base = try makeRuleSetDirectory()
+        try writeBundledRuleSets(in: base)
+
+        var root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data("""
+        {
+          "outbounds": [{"type": "direct", "tag": "direct"}],
+          "route": {
+            "rule_set": [{"tag": "geosite-cn", "type": "local", "format": "binary",
+                          "path": "/private/var/mobile/Containers/Shared/AppGroup/OLD-UUID/rule-set/geosite-cn.srs"}],
+            "rules": [{"rule_set": ["geosite-cn"], "outbound": "direct"}],
+            "final": "direct"
+          }
+        }
+        """.utf8)) as? [String: Any])
+
+        let result = ConfigMigration.localizeRemoteRuleSets(&root, base: base)
+        XCTAssertEqual(result.localized, ["geosite-cn"])
+        XCTAssertTrue(result.removed.isEmpty, "能修好的不能当摘除处理")
+
+        let route = try XCTUnwrap(root["route"] as? [String: Any])
+        let entry = try XCTUnwrap((route["rule_set"] as? [[String: Any]])?.first)
+        XCTAssertEqual(entry["path"] as? String, base.appendingPathComponent("rule-set/geosite-cn.srs").path)
+        let rules = try XCTUnwrap(route["rules"] as? [[String: Any]])
+        XCTAssertEqual(rules.count, 1, "国内直连规则必须保留")
+    }
+
     /// 订阅自己已经有国内直连规则时不要重复补。
     func testChinaDirectRuleIsNotDuplicated() throws {
         let base = try makeRuleSetDirectory()

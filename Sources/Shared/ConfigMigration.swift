@@ -228,10 +228,21 @@ public enum ConfigMigration {
                 }
                 continue
             }
-            // 已经是本地引用：路径不在就当摘除处理（旧配置可能指向已清理的缓存）
-            if let path = ruleSet["path"] as? String, !FileManager.default.fileExists(atPath: path), let tag = tag {
-                removedTags.insert(tag)
-                result.removed.append(tag)
+            // 已经是本地引用：路径不在时先按文件名在当前容器里找同名文件修复。
+            // 必须修的原因：App Group 容器的绝对路径会随"删除后重装"变化，
+            // 老 profile 里存的是老容器的路径，不修就会静默丢掉国内直连规则。
+            if let path = ruleSet["path"] as? String, !FileManager.default.fileExists(atPath: path) {
+                if let tag = tag, let repaired = RuleSetStore.repairedPath(forStalePath: path, base: base) {
+                    var entry = ruleSet
+                    entry["path"] = repaired.path
+                    kept.append(entry)
+                    result.localized.append(tag)
+                    continue
+                }
+                if let tag = tag {
+                    removedTags.insert(tag)
+                    result.removed.append(tag)
+                }
                 continue
             }
             kept.append(ruleSet)

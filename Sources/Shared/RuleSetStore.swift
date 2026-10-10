@@ -116,6 +116,17 @@ public enum RuleSetStore {
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
+    /// 修复"指向旧容器"的本地规则集路径。
+    ///
+    /// App Group 容器的绝对路径会随删除后重装变化，而 profile.json 里存的是绝对路径；
+    /// 只按文件名在当前容器里找同名文件即可修好（内置规则集由 `ensureBundled` 重新落盘，
+    /// 联网缓存的那些则等下一次订阅刷新重新下载）。
+    public static func repairedPath(forStalePath path: String, base: URL? = nil) -> URL? {
+        let fileName = (path as NSString).lastPathComponent
+        guard !fileName.isEmpty, fileName.hasSuffix(".srs") else { return nil }
+        return localURL(fileName: fileName, base: base)
+    }
+
     /// 去除分隔符与大小写后比较：`geosite-cn` / `geosite_cn` / `GeositeCN` 视为同一个。
     static func normalize(_ text: String) -> String {
         text.lowercased().filter { $0.isLetter || $0.isNumber }

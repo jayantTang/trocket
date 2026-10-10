@@ -232,6 +232,11 @@ swiftc -O -o /tmp/shapedgen Sources/Shared/*.swift /tmp/main.swift   # main.swif
 `{"type":"local","format":"binary","path":"<容器绝对路径>"}`；只有本地确实没有文件时才摘除并提示。
 **必须内置的原因**：这两个源在 GitHub raw，国内网络基本不可达，联网下载不能作为唯一路径。
 
+**路径会失效这件事必须处理**：App Group 容器的绝对路径在"删除后重装"时会变，
+而 profile.json 里存的是绝对路径 —— 老路径失效会让国内直连规则被静默摘掉（又回到全局代理）。
+所以本地化时会先按**文件名**在当前容器里找同名文件修复路径（`RuleSetStore.repairedPath`）；
+联网缓存的那些规则集则由 24 小时一次的订阅刷新重新下载并改写。
+
 **路由开关**：菜单提供「规则 / 全局」，走内核 Clash 模式（`LibboxCommandClient.setClashMode`），
 不断线生效。订阅一般自带 `clash_mode` 规则，没有的由 `ConfigShaping.ensureClashModeRules` 补
 （含 DNS 侧的 `clash_mode: global → remote`）。扩展侧**没有** `setClashMode` 绑定，
