@@ -139,6 +139,23 @@ targets:
         PRODUCT_NAME: TrocketTests
         GENERATE_INFOPLIST_FILE: YES
 
+  # 界面验证用：仿真器里跑 App 截图（网络扩展在仿真器不可用，见 specs 的验证记录）。
+  # 注意：仿真器拒绝带 packet-tunnel-provider 能力的包，跑本目标时要覆盖
+  # CODE_SIGN_ENTITLEMENTS 为「只有 App Group」的 plist（scripts/verify-ui.sh 已封装）。
+  TrocketUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/TrocketUITests
+    dependencies:
+      - target: Trocket
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "@BUNDLE_PREFIX@.trocket.uitests"
+        PRODUCT_NAME: TrocketUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Trocket
+
 schemes:
   Trocket:
     build:
@@ -146,6 +163,7 @@ schemes:
         Trocket: all
         TrocketTunnel: all
         TrocketTests: [test]
+        TrocketUITests: [test]
     run:
       config: Debug
     test:
@@ -153,6 +171,7 @@ schemes:
       gatherCoverageData: false
       targets:
         - TrocketTests
+        - TrocketUITests
   TrocketTunnel:
     build:
       targets:

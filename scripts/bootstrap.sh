@@ -45,6 +45,12 @@ MSG
   exit 1
 fi
 
+if [ -z "${BUNDLE_PREFIX:-}" ] && [ -f project.generated.yml ]; then
+  # 同样沿用上一次的前缀。默认值 com.<TeamID> 与 App Store 记录里已有的
+  # com.jayanttang.trocket 不一致，悄悄换掉会导致归档上传时"找不到 App 记录"。
+  BUNDLE_PREFIX="$(sed -n 's/.*PRODUCT_BUNDLE_IDENTIFIER: "\(.*\)\.trocket".*/\1/p' project.generated.yml | head -1)"
+fi
+
 BUNDLE_PREFIX="${BUNDLE_PREFIX:-com.${TEAM_ID}}"
 
 echo "Team ID      : ${TEAM_ID}"

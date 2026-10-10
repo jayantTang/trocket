@@ -107,11 +107,14 @@ open Trocket.xcodeproj
 ## 测试与验证
 
 ```bash
-./scripts/verify.sh    # 设备 SDK 编译 + 模拟器单元测试
+./scripts/verify.sh      # 设备 SDK 编译 + 模拟器单元测试
+./scripts/verify-ui.sh   # 仿真器界面用例（XCUITest），截图导出到 build/ui-shots/
 ```
 
 真机连接、测速与切换需按 `specs/001-ios-vpn-client/quickstart.md` 第 3 节人工复验；
 网络扩展在模拟器中无法运行，模拟器仅用于界面检查与单元测试。
+`verify-ui.sh` 会把 entitlements 覆盖成「只有 App Group」——仿真器拒绝启动带
+`packet-tunnel-provider` 能力的包（实测 POSIX 163）。
 
 ## 分发
 

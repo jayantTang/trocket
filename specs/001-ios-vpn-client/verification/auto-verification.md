@@ -40,11 +40,22 @@ xcodebuild test -scheme Trocket -destination 'platform=iOS Simulator,name=iPhone
 |---|---|---|
 | `images/simulator-empty-state.png` | 无订阅 | 单屏结构：状态卡 + 空状态引导 + 底部连接开关；测速/排序在无线路时置灰 |
 | `images/simulator-node-list.png` | 已导入订阅 | 33 条（32 线路 + "自动选择（按延迟）"，默认选中）；顶部显示"已用 1.44 GB / 200 GB 到期 2027-03-04"；未测线路显示 `—` |
+| `images/simulator-routing-menu.png` | 菜单展开（默认规则模式） | 「路由模式」分组下两项都在：「规则（国内直连）✓」带对勾、「全局（全部走线路）」不带 |
+| `images/simulator-routing-global.png` | 切到全局 | 对勾移到「全局（全部走线路）✓」，列表与开关状态不受影响 |
+| `images/simulator-routing-global-after-relaunch.png` | 杀进程重开 | 仍是「全局（全部走线路）✓」——模式通过 App Group 持久化 |
+| `images/simulator-routing-rule-restored.png` | 切回规则 | 对勾回到「规则（国内直连）✓」 |
+
+后四张由 `./scripts/verify-ui.sh` 自动产出（`TrocketUITests` 目标，见 2026-10-10 那节）：
+仿真器**拒绝启动带 `packet-tunnel-provider` 能力的包**（POSIX 163），脚本会把 entitlements
+覆盖成「只有 App Group」再跑，截图从 `.xcresult` 导出（`simctl io screenshot` 只能拍到桌面壁纸）。
 
 界面验证中修掉的一处真实缺陷：本地已有配置但系统尚未建立 VPN 配置时，状态卡显示"未导入订阅"
 （与列表内容矛盾），已改为显示"未连接"。
 
 **这套截图不能证明什么**：不能证明能连上、能测出延迟、能切换——那三件事必须真机。
+
+**关于「路由模式」这两张**：只能证明菜单渲染、选项互斥与持久化；
+「切全局后所有流量真的走线路」「规则模式下国内真的直连」必须真机（第 8 节第 8–10 项）。
 
 ## 4. 未覆盖（必须真机，见宪法第 V 条）
 
@@ -119,6 +130,7 @@ xcodebuild test -scheme Trocket -destination 'platform=iOS Simulator,name=iPhone
 | Clash 兜底转换路径 | 同上 | **CHECK OK**；生成的配置首次带有国内直连与 `clash_mode` 规则 |
 | 最坏情况（订阅无任何规则） | 同上 | **CHECK OK**；自动补出「CN → direct」与 `clash_mode` 规则 |
 | 规则集确实被内核读取（反证） | 把 `geosite-cn.srs` 移走后重跑 `check` | **FATAL: open …/rule-set/geosite-cn.srs: no such file or directory**；还原后 OK |
+| 仿真器界面：模式菜单 | `./scripts/verify-ui.sh`（新增 `TrocketUITests` 目标 + `Tests/TrocketUITests/RoutingModeMenuUITests.swift`） | **PASS**：菜单两项都在、切换后对勾正确、杀进程重开后保留；截图见第 3 节 `simulator-routing-*.png` |
 
 **仍未验证（需要真机）**：国内站点是否真的直连、切「全局」后出口 IP 是否变化、
 国内 App 是否正常 —— 步骤见 quickstart 第 3 节第 8–10 项；结果待补记。
