@@ -134,6 +134,9 @@ open Trocket.xcodeproj
 App Store Connect 的 Key ID、Issuer ID 与私钥 `.p8` 一律通过环境变量或本机
 `~/.appstoreconnect/private_keys/` 提供，不写入仓库。
 
+**中国区已不可用（2026-10-21 Apple 通告）**：中国区 App Store 与 TestFlight（含内部测试与公共链接）
+均已失效，原因是 VPN 类应用需要 MIIT 许可、而 MIIT 只向中国境内公司发证。当前上架范围为海外区；本机自签 OTA 仅用于开发自测。
+
 **分发签名（本机现状，别再踩）**：这台机器**没有登录 Xcode 账号**（导出报 `No Accounts`），
 团队 API Key 也没有云签名权限（报 `Cloud signing permission error`），所以自动导出必然失败。
 现在走**手工签名**：

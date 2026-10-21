@@ -51,7 +51,7 @@ def source_version():
     items = versions()
     if not items:
         fail("读不到任何版本")
-    return items[0]
+    return sorted(items, key=lambda v: v["attributes"].get("createdDate") or "", reverse=True)[0]
 
 
 def localizations(version_id):

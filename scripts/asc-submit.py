@@ -42,10 +42,12 @@ def call(method, path, body=None):
 
 
 def current_version():
-    status, data = call("GET", f"/v1/apps/{APP_ID}/appStoreVersions?limit=1")
+    """取**最新创建**的版本：存在多个版本时不能依赖 limit=1 的默认排序。"""
+    status, data = call("GET", f"/v1/apps/{APP_ID}/appStoreVersions?limit=20")
     if status >= 300 or not data.get("data"):
         fail("读不到 appStoreVersions")
-    version = data["data"][0]
+    versions = sorted(data["data"], key=lambda v: v["attributes"].get("createdDate") or "", reverse=True)
+    version = versions[0]
     return version["id"], version["attributes"]
 
 
